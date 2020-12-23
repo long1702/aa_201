@@ -20,7 +20,7 @@ class Subject:
         if self.is_finished:
             return
         self.module_left -= 1
-        if self.module_left <= 0:
+        if self.module_left < 0:
             self.is_finished = True
 
 
@@ -47,16 +47,18 @@ class WeeklyTimeTable:
                     continue
                 elif not period.is_finished:
                     period.reduce_module_left()
-
+                    if period.is_finished:
+                        period = Subject()
+                    
 
 class SemesterTimeTable:
     def __init__(self, weekly_time_table=WeeklyTimeTable(), is_intern=False):
         pre_semester_time_table = np.array([])
-        self.queue_subject = PriorityQueue(maxsize=0)
         if is_intern:
             for i in range(START_INTERN_WEEK):
                 weekly_time_table.reduce_module_left_subject()
                 pre_semester_time_table = np.append(pre_semester_time_table, weekly_time_table.week_time_table)
+                
 
             for i in range(INTERN_WEEKS):
                 pre_semester_time_table = np.append(pre_semester_time_table,  np.repeat([Subject("Intern")], 12 * 7))
@@ -64,21 +66,39 @@ class SemesterTimeTable:
             for i in range(SEMESTER_WEEKS - START_INTERN_WEEK - INTERN_WEEKS):
                 weekly_time_table.reduce_module_left_subject()
                 pre_semester_time_table = np.append(pre_semester_time_table,  weekly_time_table.week_time_table)
+                
 
         else:
             for i in range(SEMESTER_WEEKS):
                 weekly_time_table.reduce_module_left_subject()
                 pre_semester_time_table = np.append(pre_semester_time_table,  weekly_time_table.week_time_table)
-
+                
         # ExtraWeek
-        pre_semester_time_table = np.append(pre_semester_time_table, np.repeat([Subject("Intern")], 12 * 7))
+        weekly_time_table.reduce_module_left_subject()
+        pre_semester_time_table = np.append(pre_semester_time_table, weekly_time_table.week_time_table)
         self.semester_time_table =  np.reshape(pre_semester_time_table, (16, 7, 12))
 
+    def get_distinct_subject_in_day(self, day_time_table):
+        subjects = []
+        for subject in day_time_table:
+            if (subject.name != "Empty") and (subject.name not in subjects):
+                subjects.append(subject.name)
+        return subjects
+
     def self_check(self):
+        subjects =  []
+        subjects_name = []
+        for day in self.semester_time_table[15]:
+            for period in day:
+                if (period.module_left > 0) and (period.name not in subjects_name):
+                    subjects.append(period)
+                    subjects_name.append(period.name)
+        return subjects
+
+    def self_schedule(self):
         for i in range(SEMESTER_WEEKS - START_INTERN_WEEK - INTERN_WEEKS):
+            
             return
-
-
 
 class GroupClass:
     def __init__(self, group_name="", is_intern=False, weekly_time_table_path=""):
@@ -87,9 +107,9 @@ class GroupClass:
         self.subjects = self.subject_from_csv()
         self.weekly_time_table = WeeklyTimeTable(self.subjects, np.array(pd.DataFrame(pd.read_csv(weekly_time_table_path).to_numpy())))
         self.semester_time_table = SemesterTimeTable(self.weekly_time_table, self.is_intern)
+        self.subject_queue = self.add_queue_subject()
 
-    @staticmethod
-    def subject_from_csv(path="./subject_requirements.csv"):
+    def subject_from_csv(self, path="./subject_requirements.csv"):
         subject_df = pd.DataFrame(pd.read_csv(path))
         subjects = []
         for i in range(subject_df.shape[0]):
@@ -100,8 +120,21 @@ class GroupClass:
                         subject['Periods_per_module']))
         return subjects
 
+    def add_queue_subject(self):
+        pq = PriorityQueue(maxsize=0)
+        subjects = self.semester_time_table.self_check()
+        for subject in subjects:
+            pq.put((subject.max_periods_per_module, subject.credit, subject))
+        return pq
 
-class_list = np.array(pd.DataFrame(pd.read_csv("./intern.csv")).to_numpy())
+def schedule(group_classes):
+    standard_class = None
+    for classes in group_classes:
+        if classes.subject_queue.empty():
+            return
+
+
+class_list = np.array(pd.DataFrame(pd.read_csv("./intern.csv", header=None)).to_numpy())
 group_classes = []
 for groupclass in class_list:
     group_classes.append(GroupClass("group_"+str(groupclass[0]), groupclass[1], "./group_"+str(groupclass[0])+".csv"))
