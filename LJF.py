@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+from queue import Queue, PriorityQueue
 SEMESTER_WEEKS = 15
 INTERN_WEEKS = 4
 START_INTERN_WEEK = SEMESTER_WEEKS // 2
@@ -14,10 +14,18 @@ class Subject:
         self.max_module_per_week = max_module_per_week
         self.max_periods_per_module = max_periods_per_module
         self.module_left = module_num
+        self.is_finished = False
+
+    def reduce_module_left(self):
+        if self.is_finished:
+            return
+        self.module_left -= 1
+        if self.module_left <= 0:
+            self.is_finished = True
 
 
 class WeeklyTimeTable:
-    def __init__(self, subjects, time_list=np.array([])):
+    def __init__(self, subjects=[], time_list=np.array([])):
         pre_week_time_table = np.array([])
         for day in time_list:
             day_array = np.array([])
@@ -27,26 +35,49 @@ class WeeklyTimeTable:
                 else:
                     day_array = np.append(day_array, subjects[period-1])
             pre_week_time_table = np.append(pre_week_time_table, day_array)
+        if time_list.size != 0:
+            self.week_time_table = np.reshape(pre_week_time_table, (12, 7))
+        else:
+            self.week_time_table = time_list
 
-        self.week_time_table = np.reshape(pre_week_time_table, (12, 7))
+    def reduce_module_left_subject(self):
+        for day in self.week_time_table:
+            for period in day:
+                if period.name == "Empty":
+                    continue
+                elif not period.is_finished:
+                    period.reduce_module_left()
 
 
 class SemesterTimeTable:
     def __init__(self, weekly_time_table=WeeklyTimeTable(), is_intern=False):
         pre_semester_time_table = np.array([])
+        self.queue_subject = PriorityQueue(maxsize=0)
         if is_intern:
             for i in range(START_INTERN_WEEK):
+                weekly_time_table.reduce_module_left_subject()
                 pre_semester_time_table = np.append(pre_semester_time_table, weekly_time_table.week_time_table)
 
             for i in range(INTERN_WEEKS):
-                pre_semester_time_table = np.append(pre_semester_time_table, np.repeat([0], 12 * 7))
+                pre_semester_time_table = np.append(pre_semester_time_table,  np.repeat([Subject("Intern")], 12 * 7))
 
             for i in range(SEMESTER_WEEKS - START_INTERN_WEEK - INTERN_WEEKS):
-                pre_semester_time_table = np.append(pre_semester_time_table, weekly_time_table.week_time_table)
+                weekly_time_table.reduce_module_left_subject()
+                pre_semester_time_table = np.append(pre_semester_time_table,  weekly_time_table.week_time_table)
+
         else:
             for i in range(SEMESTER_WEEKS):
-                pre_semester_time_table = np.append(pre_semester_time_table, weekly_time_table.week_time_table)
-        self.semester_time_table = np.reshape(pre_semester_time_table, (12, 7, -1))
+                weekly_time_table.reduce_module_left_subject()
+                pre_semester_time_table = np.append(pre_semester_time_table,  weekly_time_table.week_time_table)
+
+        # ExtraWeek
+        pre_semester_time_table = np.append(pre_semester_time_table, np.repeat([Subject("Intern")], 12 * 7))
+        self.semester_time_table =  np.reshape(pre_semester_time_table, (16, 7, 12))
+
+    def self_check(self):
+        for i in range(SEMESTER_WEEKS - START_INTERN_WEEK - INTERN_WEEKS):
+            return
+
 
 
 class GroupClass:
@@ -74,8 +105,4 @@ class_list = np.array(pd.DataFrame(pd.read_csv("./intern.csv")).to_numpy())
 group_classes = []
 for groupclass in class_list:
     group_classes.append(GroupClass("group_"+str(groupclass[0]), groupclass[1], "./group_"+str(groupclass[0])+".csv"))
-
-
-
-
 
