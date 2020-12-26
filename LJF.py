@@ -45,15 +45,15 @@ class WeeklyTimeTable:
         else:
             self.week_time_table = time_list
 
-
-def reduce_module_left_subject(week_time_table):
-    for row, day in enumerate(week_time_table):
-        for col, period in enumerate(day):
-            if period.name == "Empty":
-                continue
-            elif not period.is_finished:
-                period.reduce_module_left()
-    return week_time_table
+    def reduce_module_left_subject(self):
+        for row, day in enumerate(self.week_time_table):
+            for col, period in enumerate(day):
+                if period.name == "Empty":
+                    continue
+                elif not period.is_finished:
+                    period.reduce_module_left()
+                    if period.is_finished:
+                        self.week_time_table[row][col] = Subject()
 
 
 def get_distinct_subject_in_day(day_time_table):
@@ -69,20 +69,24 @@ class SemesterTimeTable:
         pre_semester_time_table = [None] * (SEMESTER_WEEKS + 1)
         if is_intern:
             for i in range(START_INTERN_WEEK):
-                pre_semester_time_table[i] = reduce_module_left_subject(weekly_time_table.week_time_table)
+                weekly_time_table.reduce_module_left_subject()
+                pre_semester_time_table[i] = weekly_time_table.week_time_table
 
             for i in range(INTERN_WEEKS):
                 pre_semester_time_table[i + START_INTERN_WEEK] = np.reshape(np.repeat(Subject("Intern"), 12 * 7), (7, 12))
 
             for i in range(SEMESTER_WEEKS - START_INTERN_WEEK - INTERN_WEEKS):
-                pre_semester_time_table[i + INTERN_WEEKS + START_INTERN_WEEK] = reduce_module_left_subject(weekly_time_table.week_time_table)
+                weekly_time_table.reduce_module_left_subject()
+                pre_semester_time_table[i + INTERN_WEEKS + START_INTERN_WEEK] = weekly_time_table.week_time_table
 
         else:
             for i in range(SEMESTER_WEEKS):
-                pre_semester_time_table[i] = reduce_module_left_subject(weekly_time_table.week_time_table)
+                weekly_time_table.reduce_module_left_subject()
+                pre_semester_time_table[i] = weekly_time_table.week_time_table
 
         # ExtraWeek
-        pre_semester_time_table[SEMESTER_WEEKS] = np.reshape(np.repeat(Subject(), 12 * 7), (7, 12))
+        weekly_time_table.reduce_module_left_subject()
+        pre_semester_time_table[SEMESTER_WEEKS] = weekly_time_table.week_time_table
         self.semester_time_table = np.array(pre_semester_time_table)
 
     def self_check(self):
@@ -165,7 +169,6 @@ def schedule(group_class):
                             if subject[3].name in others_class_subject:
                                 break
 
-
                             available = True
                             for i in range(subject[3].max_periods_per_module):
                                 if classes_day[period + i].name != "Empty":
@@ -209,3 +212,4 @@ if __name__ == "__main__":
                 for k, class_period in enumerate(class_day):
                     if class_period.name != "Empty":
                         print("Period {}, Subject {}".format(k, class_period.name))
+        break
